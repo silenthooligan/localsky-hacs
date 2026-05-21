@@ -14,6 +14,8 @@
     "error": {
       "cannot_connect": "Could not reach LocalSky at that host and port.",
       "not_localsky": "The endpoint responded but is not a LocalSky instance.",
+      "service_too_old": "LocalSky reported a service version older than this integration supports. Update LocalSky to a recent release and try again. See https://github.com/silenthooligan/localsky-hacs#requirements for the minimum.",
+      "api_too_old": "LocalSky reported an API version this integration cannot speak. Update LocalSky to a recent release and try again. See https://github.com/silenthooligan/localsky-hacs#requirements for the minimum.",
       "unknown": "Unexpected error connecting to LocalSky. Check the host, port, and that LocalSky is reachable from Home Assistant."
     },
     "abort": {

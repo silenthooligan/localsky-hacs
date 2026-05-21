@@ -6,12 +6,21 @@ from typing import Any
 
 import aiohttp
 import voluptuous as vol
+from awesomeversion import AwesomeVersion, AwesomeVersionException
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .const import API_PREFIX, CONF_USE_HTTPS, DEFAULT_PORT, DEFAULT_USE_HTTPS, DOMAIN
+from .const import (
+    API_PREFIX,
+    CONF_USE_HTTPS,
+    DEFAULT_PORT,
+    DEFAULT_USE_HTTPS,
+    DOMAIN,
+    MIN_API_VERSION,
+    MIN_SERVICE_VERSION,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,6 +42,21 @@ async def _probe(
     async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as r:
         r.raise_for_status()
         return await r.json()
+
+
+def _version_ok(reported: Any, minimum: str) -> bool:
+    """Return True if `reported` parses as a version and is >= `minimum`.
+
+    Unknown / unparseable versions fail closed: we'd rather surface a
+    clear error in the config flow than silently pair against an instance
+    that may not implement the endpoints this integration calls.
+    """
+    if not isinstance(reported, str) or not reported:
+        return False
+    try:
+        return AwesomeVersion(reported) >= AwesomeVersion(minimum)
+    except AwesomeVersionException:
+        return False
 
 
 class LocalSkyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -67,6 +91,12 @@ class LocalSkyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             else:
                 if info.get("service") != "localsky":
                     errors["base"] = "not_localsky"
+                elif not _version_ok(
+                    info.get("service_version"), MIN_SERVICE_VERSION
+                ):
+                    errors["base"] = "service_too_old"
+                elif not _version_ok(info.get("api_version"), MIN_API_VERSION):
+                    errors["base"] = "api_too_old"
                 else:
                     # Unique ID: host:port. Lets a single HA instance pair
                     # against multiple LocalSky deployments (test bed + prod).
