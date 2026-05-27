@@ -134,6 +134,7 @@ class ManifestBinarySensor(CoordinatorEntity[LocalSkyCoordinator], BinarySensorE
         self._desc = desc
         self._snapshot = desc.get("snapshot", "")
         self._path: tuple[str, ...] = tuple(desc.get("path", []))
+        self._zone_slug: str | None = desc.get("zone_slug")
         self._attr_unique_id = f"{entry.entry_id}_{desc['id']}"
         self._attr_name = desc.get("name") or desc["id"]
         if dc := desc.get("device_class"):
@@ -156,7 +157,17 @@ class ManifestBinarySensor(CoordinatorEntity[LocalSkyCoordinator], BinarySensorE
 
     @property
     def is_on(self) -> bool | None:
-        v = _walk((self.coordinator.data or {}).get(self._snapshot), self._path)
+        snap = (self.coordinator.data or {}).get(self._snapshot)
+        if self._zone_slug is not None:
+            if not isinstance(snap, dict):
+                return None
+            zone = next(
+                (z for z in snap.get("zones") or [] if isinstance(z, dict) and z.get("slug") == self._zone_slug),
+                None,
+            )
+            v = _walk(zone, self._path)
+        else:
+            v = _walk(snap, self._path)
         return None if v is None else bool(v)
 
 

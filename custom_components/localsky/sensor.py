@@ -369,6 +369,11 @@ class ManifestSensor(_LocalSkyBaseSensor):
     descriptor's ``snapshot`` + ``path`` against the coordinator data.
     Adding a new sensor in LocalSky means adding a descriptor in
     manifest.rs — no HACS code change required.
+
+    When the descriptor sets ``zone_slug``, the path is interpreted as
+    relative to the zone object found in ``snapshot.zones[]`` matching
+    that slug (zones[] is a list, so direct path traversal doesn't
+    work without this special-case).
     """
 
     def __init__(
@@ -381,15 +386,11 @@ class ManifestSensor(_LocalSkyBaseSensor):
         self._desc = desc
         self._snapshot = desc.get("snapshot", "")
         self._path: tuple[str, ...] = tuple(desc.get("path", []))
+        self._zone_slug: str | None = desc.get("zone_slug")
         self._attr_unique_id = f"{entry.entry_id}_{desc['id']}"
         self._attr_name = desc.get("name") or desc["id"]
         self._attr_native_unit_of_measurement = desc.get("unit")
         self._attr_icon = desc.get("icon")
-        # HA's device_class/state_class enums accept their string values
-        # directly, so we just pass through whatever LocalSky declares.
-        # Invalid values would trigger a startup warning from HA, not a
-        # crash — easier to surface server-side than to redo the
-        # validation here.
         if dc := desc.get("device_class"):
             self._attr_device_class = dc
         if sc := desc.get("state_class"):
@@ -397,4 +398,13 @@ class ManifestSensor(_LocalSkyBaseSensor):
 
     @property
     def native_value(self) -> Any:
-        return _walk((self.coordinator.data or {}).get(self._snapshot), self._path)
+        snap = (self.coordinator.data or {}).get(self._snapshot)
+        if self._zone_slug is not None:
+            if not isinstance(snap, dict):
+                return None
+            zone = next(
+                (z for z in snap.get("zones") or [] if isinstance(z, dict) and z.get("slug") == self._zone_slug),
+                None,
+            )
+            return _walk(zone, self._path)
+        return _walk(snap, self._path)
