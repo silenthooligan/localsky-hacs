@@ -15,11 +15,17 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .const import (
     API_PREFIX,
     CONF_USE_HTTPS,
+    DEFAULT_POLL_INTERVAL,
     DEFAULT_PORT,
+    DEFAULT_RUN_SECONDS,
     DEFAULT_USE_HTTPS,
+    DEFAULT_USE_SSE,
     DOMAIN,
     MIN_API_VERSION,
     MIN_SERVICE_VERSION,
+    OPT_DEFAULT_RUN_SECONDS,
+    OPT_POLL_INTERVAL,
+    OPT_USE_SSE,
 )
 from .util import format_base_url
 
@@ -63,6 +69,12 @@ class LocalSkyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle the LocalSky integration setup flow."""
 
     VERSION = 1
+
+    @staticmethod
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> "LocalSkyOptionsFlow":
+        return LocalSkyOptionsFlow(config_entry)
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -120,3 +132,37 @@ class LocalSkyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
             description_placeholders={"default_port": str(DEFAULT_PORT)},
         )
+
+
+class LocalSkyOptionsFlow(config_entries.OptionsFlow):
+    """User-tunable options surfaced on the integration card."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        # HA 2024.11+ deprecates assigning self.config_entry directly;
+        # the base class exposes self.config_entry via the entry context.
+        self._entry = config_entry
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        opts = self._entry.options
+        schema = vol.Schema(
+            {
+                vol.Optional(
+                    OPT_USE_SSE,
+                    default=opts.get(OPT_USE_SSE, DEFAULT_USE_SSE),
+                ): bool,
+                vol.Optional(
+                    OPT_POLL_INTERVAL,
+                    default=opts.get(OPT_POLL_INTERVAL, DEFAULT_POLL_INTERVAL),
+                ): vol.All(vol.Coerce(int), vol.Range(min=5, max=600)),
+                vol.Optional(
+                    OPT_DEFAULT_RUN_SECONDS,
+                    default=opts.get(OPT_DEFAULT_RUN_SECONDS, DEFAULT_RUN_SECONDS),
+                ): vol.All(vol.Coerce(int), vol.Range(min=60, max=7200)),
+            }
+        )
+        return self.async_show_form(step_id="init", data_schema=schema)

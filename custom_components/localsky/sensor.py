@@ -100,10 +100,10 @@ WEATHER_SENSORS: tuple[LocalSkySensorDef, ...] = (
         device_class=SensorDeviceClass.PRESSURE,
     ),
     LocalSkySensorDef(
-        key="rain_today_in",
+        key="rain_in_today",
         name="Rain today",
         snapshot="tempest",
-        path=("rain_today_in",),
+        path=("rain_in_today",),
         unit="in",
         device_class=SensorDeviceClass.PRECIPITATION,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -153,63 +153,59 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up all LocalSky sensors for this config entry."""
+    """Set up scalar sensors immediately, then add per-zone sensors as
+    LocalSky reports new zones via the coordinator's dynamic listener.
+    A zone added in LocalSky's UI surfaces in HA without reload."""
     coordinator: LocalSkyCoordinator = hass.data[DOMAIN][entry.entry_id]
 
-    entities: list[SensorEntity] = [
+    scalars: list[SensorEntity] = [
         LocalSkyScalarSensor(coordinator, entry, d) for d in WEATHER_SENSORS
     ]
-    entities.append(LocalSkyScalarSensor(coordinator, entry, VERDICT_SENSOR))
+    scalars.append(LocalSkyScalarSensor(coordinator, entry, VERDICT_SENSOR))
+    async_add_entities(scalars)
 
-    # Per-zone sensors. The zone list comes from the irrigation snapshot;
-    # it's stable across a single LocalSky deployment, so we enumerate
-    # what's there at setup time and trust the coordinator to keep them
-    # in sync. Operators who add a new zone after setup should reload the
-    # config entry from HA's integrations page.
-    irrigation = coordinator.data.get("irrigation") if coordinator.data else None
-    if irrigation:
-        for zone in irrigation.get("zones", []):
-            slug = zone.get("slug")
-            name = zone.get("name") or slug
-            if not slug:
-                continue
-            entities.extend(
+    seen: set[str] = set()
+
+    @callback
+    def _on_zones(slugs: set[str]) -> None:
+        new = slugs - seen
+        if not new:
+            return
+        irrigation = (coordinator.data or {}).get("irrigation") or {}
+        zone_by_slug = {z["slug"]: z for z in irrigation.get("zones", []) if z.get("slug")}
+        new_entities: list[SensorEntity] = []
+        for slug in sorted(new):
+            zone_name = (zone_by_slug.get(slug) or {}).get("name") or slug
+            new_entities.extend(
                 [
                     LocalSkyZoneSensor(
-                        coordinator,
-                        entry,
-                        slug=slug,
-                        zone_name=name,
-                        key="bucket_mm",
-                        label="Soil bucket",
-                        unit="mm",
-                        icon="mdi:water-percent",
+                        coordinator, entry,
+                        slug=slug, zone_name=zone_name,
+                        key="bucket_mm", label="Soil bucket",
+                        unit="mm", icon="mdi:water-percent",
                     ),
                     LocalSkyZoneSensor(
-                        coordinator,
-                        entry,
-                        slug=slug,
-                        zone_name=name,
-                        key="planned_run_seconds",
-                        label="Planned run",
+                        coordinator, entry,
+                        slug=slug, zone_name=zone_name,
+                        key="planned_run_seconds", label="Planned run",
                         unit=UnitOfTime.SECONDS,
                         device_class=SensorDeviceClass.DURATION,
                     ),
                     LocalSkyZoneSensor(
-                        coordinator,
-                        entry,
-                        slug=slug,
-                        zone_name=name,
-                        key="today_run_minutes",
-                        label="Run today",
+                        coordinator, entry,
+                        slug=slug, zone_name=zone_name,
+                        key="today_run_minutes", label="Run today",
                         unit=UnitOfTime.MINUTES,
                         device_class=SensorDeviceClass.DURATION,
                         state_class=SensorStateClass.TOTAL_INCREASING,
                     ),
                 ]
             )
+        if new_entities:
+            async_add_entities(new_entities)
+        seen.update(new)
 
-    async_add_entities(entities)
+    entry.async_on_unload(coordinator.add_zone_listener(_on_zones))
 
 
 class _LocalSkyBaseSensor(CoordinatorEntity[LocalSkyCoordinator], SensorEntity):

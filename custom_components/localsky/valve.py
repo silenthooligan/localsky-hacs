@@ -1,18 +1,25 @@
-"""Per-zone switch — back-compat shim.
+"""LocalSky irrigation zones as HA ``valve`` entities.
 
-The canonical entity for LocalSky irrigation zones in v0.3.0+ is the
-``valve.<zone>`` produced by ``valve.py``. This switch is preserved so
-existing automations that reference ``switch.<zone>_run`` keep working
-during migration; both call the same underlying coordinator action.
+Modern replacement for the per-zone ``switch.<zone>_run`` entities. HA's
+valve platform (2024.5+) is the proper device class for water valves and
+sprinkler stations — it gives Lovelace the right tile features (open/
+close, position) and surfaces correctly in voice intents like "open the
+front yard valve".
 
-New installs should prefer the valve entity.
+Each LocalSky zone slug becomes one ``valve.localsky_<slug>``. The valve
+opens (zone runs) for ``default_run_seconds`` from options unless an
+automation passes a duration via service data.
 """
 from __future__ import annotations
 
 import logging
 from typing import Any
 
-from homeassistant.components.switch import SwitchEntity
+from homeassistant.components.valve import (
+    ValveDeviceClass,
+    ValveEntity,
+    ValveEntityFeature,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -37,6 +44,8 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
+    """Register valves dynamically — every new LocalSky zone shows up
+    without a config-entry reload."""
     coordinator: LocalSkyCoordinator = hass.data[DOMAIN][entry.entry_id]
     seen: set[str] = set()
 
@@ -47,27 +56,26 @@ async def async_setup_entry(
             return
         irrigation = (coordinator.data or {}).get("irrigation") or {}
         zone_by_slug = {z["slug"]: z for z in irrigation.get("zones", []) if z.get("slug")}
-        async_add_entities(
-            [
-                LocalSkyZoneSwitch(
-                    coordinator,
-                    entry,
-                    slug,
-                    zone_by_slug.get(slug, {}).get("name") or slug,
-                )
-                for slug in sorted(new)
-            ]
-        )
+        entities = [
+            LocalSkyZoneValve(coordinator, entry, slug, zone_by_slug.get(slug, {}).get("name") or slug)
+            for slug in sorted(new)
+        ]
+        if entities:
+            async_add_entities(entities)
         seen.update(new)
 
     entry.async_on_unload(coordinator.add_zone_listener(_on_zones))
 
 
-class LocalSkyZoneSwitch(CoordinatorEntity[LocalSkyCoordinator], SwitchEntity):
-    """on = run zone; off = stop zone. Back-compat with v0.1/v0.2."""
+class LocalSkyZoneValve(CoordinatorEntity[LocalSkyCoordinator], ValveEntity):
+    """A LocalSky irrigation zone, exposed as a water valve."""
 
     _attr_has_entity_name = True
-    _attr_entity_registry_enabled_default = False  # valve is canonical; keep this off by default
+    _attr_device_class = ValveDeviceClass.WATER
+    _attr_supported_features = (
+        ValveEntityFeature.OPEN | ValveEntityFeature.CLOSE
+    )
+    _attr_reports_position = False
 
     def __init__(
         self,
@@ -79,8 +87,8 @@ class LocalSkyZoneSwitch(CoordinatorEntity[LocalSkyCoordinator], SwitchEntity):
         super().__init__(coordinator)
         self._entry = entry
         self._slug = slug
-        self._attr_unique_id = f"{entry.entry_id}_{slug}_run"
-        self._attr_name = f"{zone_name} - Run"
+        self._attr_unique_id = f"{entry.entry_id}_{slug}_valve"
+        self._attr_name = zone_name
         info = coordinator.info or {}
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
@@ -95,15 +103,25 @@ class LocalSkyZoneSwitch(CoordinatorEntity[LocalSkyCoordinator], SwitchEntity):
             ),
         )
 
-    @property
-    def is_on(self) -> bool | None:
-        data = self.coordinator.data or {}
-        for z in (data.get("irrigation") or {}).get("zones", []):
+    def _zone(self) -> dict[str, Any] | None:
+        irrigation = (self.coordinator.data or {}).get("irrigation") or {}
+        for z in irrigation.get("zones", []):
             if z.get("slug") == self._slug:
-                return bool(z.get("running"))
+                return z
         return None
 
-    async def async_turn_on(self, **kwargs: Any) -> None:
+    @property
+    def is_closed(self) -> bool | None:
+        zone = self._zone()
+        if zone is None:
+            return None
+        return not bool(zone.get("running"))
+
+    @property
+    def available(self) -> bool:
+        return super().available and self._zone() is not None
+
+    async def async_open_valve(self, **kwargs: Any) -> None:
         seconds = int(
             kwargs.get(
                 "duration_s",
@@ -114,7 +132,7 @@ class LocalSkyZoneSwitch(CoordinatorEntity[LocalSkyCoordinator], SwitchEntity):
             {"kind": ACTION_RUN, "zone": self._slug, "seconds": seconds}
         )
 
-    async def async_turn_off(self, **kwargs: Any) -> None:
+    async def async_close_valve(self, **kwargs: Any) -> None:
         await self.coordinator.dispatch_action(
             {"kind": ACTION_STOP, "zone": self._slug}
         )

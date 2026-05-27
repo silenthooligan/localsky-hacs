@@ -1,4 +1,9 @@
-"""LocalSky HA integration."""
+"""LocalSky HA integration.
+
+Pattern: one config entry per LocalSky deployment. The coordinator
+multiplexes SSE streams (irrigation + tempest) + a slow forecast poll
+into a single data dict consumed by the platforms below.
+"""
 from __future__ import annotations
 
 import logging
@@ -17,9 +22,12 @@ from .util import format_base_url
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [
-    Platform.SENSOR,
     Platform.BINARY_SENSOR,
+    Platform.NUMBER,
+    Platform.SENSOR,
     Platform.SWITCH,
+    Platform.VALVE,
+    Platform.WEATHER,
 ]
 
 
@@ -31,25 +39,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     base_url = format_base_url(host, port, use_https)
 
     session = async_get_clientsession(hass)
-    coordinator = LocalSkyCoordinator(hass, session, base_url)
+    coordinator = LocalSkyCoordinator(hass, entry, session, base_url)
 
-    # Service probe + first refresh. Either failure should keep HA from
-    # registering platforms so the user sees a clear setup-failed state.
     try:
         await coordinator.fetch_info()
     except Exception as err:  # noqa: BLE001 - aiohttp + timeouts + json parse
         raise ConfigEntryNotReady(f"Cannot reach LocalSky at {base_url}: {err}") from err
 
-    await coordinator.async_config_entry_first_refresh()
+    await coordinator.async_start()
 
     domain_data = hass.data.setdefault(DOMAIN, {})
     domain_data[entry.entry_id] = coordinator
 
     # Register integration-level services once, on the first entry setup.
-    # Services act against whichever entry the caller targets (or all,
-    # for stop_all).
     if len(domain_data) == 1:
         async_register_services(hass)
+
+    # Reload entry when options change so the coordinator picks up new
+    # SSE/poll preferences without a manual restart.
+    entry.async_on_unload(entry.add_update_listener(_async_reload_on_options))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
@@ -60,9 +68,15 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         domain_data = hass.data.get(DOMAIN, {})
-        domain_data.pop(entry.entry_id, None)
-        # If nothing's left, unregister the services so HA's service UI
-        # doesn't list orphan actions.
+        coordinator: LocalSkyCoordinator | None = domain_data.pop(entry.entry_id, None)
+        if coordinator is not None:
+            await coordinator.async_stop()
         if not domain_data:
             async_unregister_services(hass)
     return unload_ok
+
+
+async def _async_reload_on_options(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> None:
+    await hass.config_entries.async_reload(entry.entry_id)

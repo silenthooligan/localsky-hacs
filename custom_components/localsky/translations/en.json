@@ -22,6 +22,19 @@
       "already_configured": "This LocalSky instance is already configured."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "LocalSky options",
+        "description": "Tune how this integration talks to LocalSky.",
+        "data": {
+          "use_sse": "Use Server-Sent Events (push updates from LocalSky)",
+          "poll_interval_seconds": "Polling interval (seconds) — used only when SSE is disabled",
+          "default_run_seconds": "Default valve open duration (seconds)"
+        }
+      }
+    }
+  },
   "services": {
     "run_zone": {
       "name": "Run zone",
