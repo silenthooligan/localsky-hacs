@@ -13,13 +13,12 @@ from homeassistant.components.binary_sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import LocalSkyCoordinator
-from .util import format_base_url
+from .util import device_info_for
 
 
 def _walk(data: Any, path: tuple[str, ...]) -> Any:
@@ -141,19 +140,7 @@ class ManifestBinarySensor(CoordinatorEntity[LocalSkyCoordinator], BinarySensorE
             self._attr_device_class = dc
         if icon := desc.get("icon"):
             self._attr_icon = icon
-        info = coordinator.info or {}
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name="LocalSky",
-            manufacturer="LocalSky",
-            model="LocalSky Service",
-            sw_version=info.get("service_version", "unknown"),
-            configuration_url=format_base_url(
-                entry.data.get("host", ""),
-                entry.data.get("port", 8090),
-                entry.data.get("use_https", False),
-            ),
-        )
+        self._attr_device_info = device_info_for(entry, coordinator.info, self._snapshot)
 
     @property
     def is_on(self) -> bool | None:
@@ -174,21 +161,14 @@ class ManifestBinarySensor(CoordinatorEntity[LocalSkyCoordinator], BinarySensorE
 class _LocalSkyBaseBinary(CoordinatorEntity[LocalSkyCoordinator], BinarySensorEntity):
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator: LocalSkyCoordinator, entry: ConfigEntry) -> None:
+    def __init__(
+        self,
+        coordinator: LocalSkyCoordinator,
+        entry: ConfigEntry,
+        group: str | None = None,
+    ) -> None:
         super().__init__(coordinator)
-        info = coordinator.info or {}
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name="LocalSky",
-            manufacturer="LocalSky",
-            model="LocalSky Service",
-            sw_version=info.get("service_version", "unknown"),
-            configuration_url=format_base_url(
-                entry.data.get("host", ""),
-                entry.data.get("port", 8090),
-                entry.data.get("use_https", False),
-            ),
-        )
+        self._attr_device_info = device_info_for(entry, coordinator.info, group)
 
 
 class LocalSkyZoneRunningBinary(_LocalSkyBaseBinary):
@@ -203,7 +183,7 @@ class LocalSkyZoneRunningBinary(_LocalSkyBaseBinary):
         slug: str,
         zone_name: str,
     ) -> None:
-        super().__init__(coordinator, entry)
+        super().__init__(coordinator, entry, group="irrigation")
         self._slug = slug
         self._attr_unique_id = f"{entry.entry_id}_{slug}_running"
         self._attr_name = f"{zone_name} - Running"
@@ -223,7 +203,7 @@ class LocalSkyAnyZoneRunning(_LocalSkyBaseBinary):
     _attr_device_class = BinarySensorDeviceClass.RUNNING
 
     def __init__(self, coordinator: LocalSkyCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry)
+        super().__init__(coordinator, entry, group="irrigation")
         self._attr_unique_id = f"{entry.entry_id}_any_running"
         self._attr_name = "Any zone running"
 

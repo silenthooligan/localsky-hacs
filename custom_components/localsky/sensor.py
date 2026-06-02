@@ -19,12 +19,11 @@ from homeassistant.const import (
     UnitOfTime,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
-from .util import format_base_url
+from .util import device_info_for
 from .coordinator import LocalSkyCoordinator
 
 
@@ -280,22 +279,16 @@ class _LocalSkyBaseSensor(CoordinatorEntity[LocalSkyCoordinator], SensorEntity):
 
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator: LocalSkyCoordinator, entry: ConfigEntry) -> None:
+    def __init__(
+        self,
+        coordinator: LocalSkyCoordinator,
+        entry: ConfigEntry,
+        group: str | None = None,
+    ) -> None:
         super().__init__(coordinator)
         self._entry = entry
-        info = coordinator.info or {}
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name="LocalSky",
-            manufacturer="LocalSky",
-            model="LocalSky Service",
-            sw_version=info.get("service_version", "unknown"),
-            configuration_url=format_base_url(
-                entry.data.get("host", ""),
-                entry.data.get("port", 8090),
-                entry.data.get("use_https", False),
-            ),
-        )
+        # F2: group the entity under a LocalSky sub-device by its snapshot.
+        self._attr_device_info = device_info_for(entry, coordinator.info, group)
 
 
 class LocalSkyScalarSensor(_LocalSkyBaseSensor):
@@ -307,7 +300,7 @@ class LocalSkyScalarSensor(_LocalSkyBaseSensor):
         entry: ConfigEntry,
         spec: LocalSkySensorDef,
     ) -> None:
-        super().__init__(coordinator, entry)
+        super().__init__(coordinator, entry, group=spec.snapshot)
         self._spec = spec
         self._attr_unique_id = f"{entry.entry_id}_{spec.key}"
         self._attr_name = spec.name
@@ -341,7 +334,7 @@ class LocalSkyZoneSensor(_LocalSkyBaseSensor):
         state_class: SensorStateClass | None = SensorStateClass.MEASUREMENT,
         icon: str | None = None,
     ) -> None:
-        super().__init__(coordinator, entry)
+        super().__init__(coordinator, entry, group="irrigation")
         self._slug = slug
         self._key = key
         self._attr_unique_id = f"{entry.entry_id}_{slug}_{key}"
@@ -382,7 +375,7 @@ class ManifestSensor(_LocalSkyBaseSensor):
         entry: ConfigEntry,
         desc: dict[str, Any],
     ) -> None:
-        super().__init__(coordinator, entry)
+        super().__init__(coordinator, entry, group=desc.get("snapshot"))
         self._desc = desc
         self._snapshot = desc.get("snapshot", "")
         self._path: tuple[str, ...] = tuple(desc.get("path", []))

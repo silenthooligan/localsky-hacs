@@ -15,7 +15,6 @@ from typing import Any
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -27,7 +26,7 @@ from .const import (
     OPT_DEFAULT_RUN_SECONDS,
 )
 from .coordinator import LocalSkyCoordinator
-from .util import format_base_url
+from .util import device_info_for
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -81,19 +80,7 @@ class LocalSkyZoneSwitch(CoordinatorEntity[LocalSkyCoordinator], SwitchEntity):
         self._slug = slug
         self._attr_unique_id = f"{entry.entry_id}_{slug}_run"
         self._attr_name = f"{zone_name} - Run"
-        info = coordinator.info or {}
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name="LocalSky",
-            manufacturer="LocalSky",
-            model="LocalSky Service",
-            sw_version=info.get("service_version", "unknown"),
-            configuration_url=format_base_url(
-                entry.data.get("host", ""),
-                entry.data.get("port", 8090),
-                entry.data.get("use_https", False),
-            ),
-        )
+        self._attr_device_info = device_info_for(entry, coordinator.info, "irrigation")
 
     @property
     def is_on(self) -> bool | None:
