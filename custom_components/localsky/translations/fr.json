@@ -32,8 +32,8 @@
     "error": {
       "cannot_connect": "Impossible de joindre LocalSky sur cet hote et ce port.",
       "not_localsky": "Le point de terminaison repond mais n'est pas une instance LocalSky.",
-      "service_too_old": "LocalSky reported a service version older than this integration supports. Update LocalSky to a recent release and try again. See https://github.com/silenthooligan/localsky-hacs#requirements for the minimum.",
-      "api_too_old": "LocalSky reported an API version this integration cannot speak. Update LocalSky to a recent release and try again. See https://github.com/silenthooligan/localsky-hacs#requirements for the minimum.",
+      "service_too_old": "LocalSky annonce une version plus ancienne que celle prise en charge par cette intégration. Mettez LocalSky à jour vers une version récente et réessayez.",
+      "api_too_old": "LocalSky annonce une version d'API que cette intégration ne prend pas en charge. Mettez LocalSky à jour vers une version récente et réessayez.",
       "unknown": "Erreur inattendue lors de la connexion a LocalSky.",
       "invalid_auth": "LocalSky a rejete ce jeton d'API."
     },
