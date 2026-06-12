@@ -14,7 +14,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import CONF_HOST, CONF_PORT, CONF_USE_HTTPS, DEFAULT_PORT, DOMAIN
-from .coordinator import LocalSkyConfigEntry
+from .coordinator import LocalSkyConfigEntry, LocalSkyCoordinator
 from .services import async_register_services, async_unregister_services
 from .util import format_base_url
 
