@@ -43,13 +43,21 @@ Full setup guide: **[localsky.io/docs/hacs](https://localsky.io/docs/hacs)**
 
 ## Install
 
-**HACS** (custom repository, pending inclusion in the default catalog):
+**One click** (opens your own Home Assistant):
 
-1. HACS, three-dot menu, **Custom repositories**.
-2. Add `https://github.com/silenthooligan/localsky-hacs` as category **Integration**.
-3. Install **LocalSky**, restart Home Assistant.
+[![Open your Home Assistant instance and add this repository to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=silenthooligan&repository=localsky-hacs&category=integration)
 
-**Pair**: if LocalSky is already running on your LAN, Home Assistant will discover it and prompt you. Otherwise add it under **Settings, Devices & Services, Add Integration**, search for LocalSky, and enter the host and port (default `8090`). Instances with auth enabled will ask for an API token, created in LocalSky under Settings, Account.
+Install **LocalSky** when HACS opens, then restart Home Assistant.
+
+**Or by hand**: HACS, three-dot menu, **Custom repositories**, add `https://github.com/silenthooligan/localsky-hacs` as category **Integration**, install, restart. (Default-catalog inclusion is pending review; until then the repository adds as a custom one either way.)
+
+## Pair
+
+If LocalSky is already running on your LAN, Home Assistant discovers it and prompts you. Otherwise:
+
+[![Open your Home Assistant instance and start setting up a new integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=localsky)
+
+Enter the host and port (default `8090`). Instances with auth enabled will ask for an API token, created in LocalSky under Settings, Account.
 
 ## Requirements
 
