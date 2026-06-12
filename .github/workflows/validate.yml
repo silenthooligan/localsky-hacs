@@ -25,7 +25,7 @@ jobs:
       - uses: home-assistant/actions/hassfest@master
 
   tests:
-    name: pytest (config flow)
+    name: pytest (config flow, init, coordinator, entities)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

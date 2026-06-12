@@ -79,20 +79,23 @@ RESUME_SCHEMA = vol.Schema(
 
 def _targets(hass: HomeAssistant, call: ServiceCall):
     """Yield coordinators the call should act against."""
-    domain_data = hass.data.get(DOMAIN, {})
-    if not domain_data:
+    loaded = {
+        e.entry_id: e.runtime_data
+        for e in hass.config_entries.async_loaded_entries(DOMAIN)
+    }
+    if not loaded:
         raise HomeAssistantError(
             "LocalSky is not configured. Add the integration before calling services."
         )
     entry_id = call.data.get(ATTR_ENTRY_ID)
     if entry_id is not None:
-        coordinator = domain_data.get(entry_id)
+        coordinator = loaded.get(entry_id)
         if coordinator is None:
             raise HomeAssistantError(
                 f"No LocalSky entry with entry_id={entry_id!r}."
             )
         return [coordinator]
-    return list(domain_data.values())
+    return list(loaded.values())
 
 
 async def _dispatch(hass: HomeAssistant, call: ServiceCall, payload: dict[str, Any]) -> None:

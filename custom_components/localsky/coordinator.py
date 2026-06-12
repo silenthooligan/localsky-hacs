@@ -38,6 +38,10 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Config entry carrying its coordinator in runtime_data (HA 2024.6+
+# pattern; replaces hass.data[DOMAIN][entry_id] indirection).
+LocalSkyConfigEntry = ConfigEntry["LocalSkyCoordinator"]
+
 # Forecast endpoint isn't event-driven server-side; refresh every 5 min.
 FORECAST_REFRESH = timedelta(minutes=5)
 

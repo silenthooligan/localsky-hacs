@@ -45,7 +45,7 @@ async def async_setup_entry(
 ) -> None:
     """Register valves dynamically — every new LocalSky zone shows up
     without a config-entry reload."""
-    coordinator: LocalSkyCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: LocalSkyCoordinator = entry.runtime_data
     seen: set[str] = set()
 
     @callback

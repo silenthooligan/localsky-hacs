@@ -164,7 +164,7 @@ async def async_setup_entry(
     coordinator.manifest is None and we fall back to the legacy
     hardcoded WEATHER_SENSORS + zone-listener path.
     """
-    coordinator: LocalSkyCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: LocalSkyCoordinator = entry.runtime_data
     manifest = await coordinator.fetch_manifest()
 
     if manifest is not None:

@@ -8,14 +8,13 @@ from __future__ import annotations
 
 import logging
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import CONF_HOST, CONF_PORT, CONF_USE_HTTPS, DEFAULT_PORT, DOMAIN
-from .coordinator import LocalSkyCoordinator
+from .coordinator import LocalSkyConfigEntry
 from .services import async_register_services, async_unregister_services
 from .util import format_base_url
 
@@ -31,7 +30,7 @@ PLATFORMS: list[Platform] = [
 ]
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: LocalSkyConfigEntry) -> bool:
     """Set up LocalSky from a config entry."""
     host: str = entry.data[CONF_HOST]
     port: int = entry.data.get(CONF_PORT, DEFAULT_PORT)
@@ -48,12 +47,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await coordinator.async_start()
 
-    domain_data = hass.data.setdefault(DOMAIN, {})
-    domain_data[entry.entry_id] = coordinator
+    entry.runtime_data = coordinator
 
     # Register integration-level services once, on the first entry setup.
-    if len(domain_data) == 1:
-        async_register_services(hass)
+    # has_service makes this idempotent across multiple entries.
+    async_register_services(hass)
 
     # Reload entry when options change so the coordinator picks up new
     # SSE/poll preferences without a manual restart.
@@ -63,20 +61,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: LocalSkyConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        domain_data = hass.data.get(DOMAIN, {})
-        coordinator: LocalSkyCoordinator | None = domain_data.pop(entry.entry_id, None)
-        if coordinator is not None:
-            await coordinator.async_stop()
-        if not domain_data:
+        await entry.runtime_data.async_stop()
+        # Drop the integration services with the last loaded entry.
+        others = [
+            e
+            for e in hass.config_entries.async_loaded_entries(DOMAIN)
+            if e.entry_id != entry.entry_id
+        ]
+        if not others:
             async_unregister_services(hass)
     return unload_ok
 
 
 async def _async_reload_on_options(
-    hass: HomeAssistant, entry: ConfigEntry
+    hass: HomeAssistant, entry: LocalSkyConfigEntry
 ) -> None:
     await hass.config_entries.async_reload(entry.entry_id)

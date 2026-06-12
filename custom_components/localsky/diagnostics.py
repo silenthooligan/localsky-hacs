@@ -33,7 +33,7 @@ def _iso(v: Any) -> str | None:
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> dict[str, Any]:
-    coordinator: LocalSkyCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: LocalSkyCoordinator = entry.runtime_data
     data = coordinator.data or {}
     irrigation = data.get("irrigation") or {}
     return {
