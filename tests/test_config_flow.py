@@ -192,3 +192,57 @@ async def test_reauth_flow(hass: HomeAssistant) -> None:
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reauth_successful"
     assert entry.data[CONF_API_TOKEN] == "lsk_new"
+
+
+@pytest.mark.asyncio
+async def test_zeroconf_adopts_legacy_host_keyed_entry(hass: HomeAssistant) -> None:
+    """Pre-0.6 entries were keyed host:port; discovery adopts the uuid
+    onto them instead of offering the same instance as new."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=USER_INPUT,
+        unique_id="192.0.2.10:8090",
+        title="LocalSky (192.0.2.10)",
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_ZEROCONF},
+        data=_zeroconf_info(),
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert entry.unique_id == INFO_OPEN["uuid"]
+    # The entry itself is otherwise untouched.
+    assert entry.data["host"] == "192.0.2.10"
+
+
+@pytest.mark.asyncio
+async def test_user_flow_adopts_legacy_host_keyed_entry(hass: HomeAssistant) -> None:
+    """Manually re-adding a legacy instance upgrades the existing entry
+    instead of creating a duplicate."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=USER_INPUT,
+        unique_id="192.0.2.10:8090",
+        title="LocalSky (192.0.2.10)",
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    with patch(
+        "custom_components.localsky.config_flow._probe",
+        new=AsyncMock(return_value=INFO_OPEN),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], USER_INPUT
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert entry.unique_id == INFO_OPEN["uuid"]
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 1

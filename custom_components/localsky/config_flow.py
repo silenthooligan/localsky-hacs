@@ -21,7 +21,7 @@ import voluptuous as vol
 from awesomeversion import AwesomeVersion, AwesomeVersionException
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_PORT
-from homeassistant.data_entry_flow import FlowResult
+from homeassistant.data_entry_flow import AbortFlow, FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
@@ -134,6 +134,34 @@ class LocalSkyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     # ---- shared helpers ----
 
+    def _adopt_legacy_entry(self, unique_id: str) -> bool:
+        """Claim `unique_id` for an entry from before uuid identity.
+
+        Entries created by pre-0.6 flows are keyed host:port, so the
+        uuid dedupe above never matches them and discovery keeps
+        offering an already-configured instance as new. Match on
+        host+port instead and rewrite the entry's unique_id in place;
+        everything else about the entry (and therefore every entity id)
+        stays untouched.
+        """
+        for entry in self._async_current_entries(include_ignore=False):
+            if entry.unique_id == unique_id:
+                continue
+            if (
+                entry.data.get(CONF_HOST) == self._host
+                and entry.data.get(CONF_PORT, DEFAULT_PORT) == self._port
+            ):
+                self.hass.config_entries.async_update_entry(
+                    entry, unique_id=unique_id
+                )
+                _LOGGER.info(
+                    "Adopted instance uuid onto existing LocalSky entry for %s:%s",
+                    self._host,
+                    self._port,
+                )
+                return True
+        return False
+
     async def _set_unique_id_from_info(self) -> None:
         """Prefer the stable instance uuid; fall back to host:port."""
         unique_id = self._info.get("uuid") or f"{self._host}:{self._port}"
@@ -141,6 +169,8 @@ class LocalSkyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._abort_if_unique_id_configured(
             updates={CONF_HOST: self._host, CONF_PORT: self._port}
         )
+        if self._adopt_legacy_entry(str(unique_id)):
+            raise AbortFlow("already_configured")
 
     def _entry_data(self, token: str | None) -> dict[str, Any]:
         data: dict[str, Any] = {
@@ -251,6 +281,8 @@ class LocalSkyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._abort_if_unique_id_configured(
                 updates={CONF_HOST: self._host, CONF_PORT: self._port}
             )
+            if self._adopt_legacy_entry(str(uuid)):
+                return self.async_abort(reason="already_configured")
 
         session = async_get_clientsession(self.hass)
         try:
