@@ -1,76 +1,64 @@
+<p align="center">
+  <img src="custom_components/localsky/brand/icon@2x.png" alt="LocalSky" width="112" height="112">
+</p>
+
 <h1 align="center">LocalSky for Home Assistant</h1>
 
 <p align="center">
-  <strong>Home Assistant integration for <a href="https://github.com/silenthooligan/localsky">LocalSky</a>.</strong><br>
-  Local-polling. Config flow. No YAML.
+  <strong>Your backyard weather station and smart irrigation, as native Home Assistant entities.</strong><br>
+  Discovered automatically. Updated in under a second. No YAML.
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/License-Apache_2.0-3b82f6.svg"></a>
-  <a href="https://github.com/hacs/integration"><img alt="HACS" src="https://img.shields.io/badge/HACS-Custom-orange.svg"></a>
+  <a href="https://github.com/silenthooligan/localsky-hacs/actions/workflows/validate.yml"><img alt="Validate" src="https://github.com/silenthooligan/localsky-hacs/actions/workflows/validate.yml/badge.svg"></a>
+  <a href="https://github.com/silenthooligan/localsky-hacs/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/silenthooligan/localsky-hacs?color=3b82f6"></a>
+  <a href="https://github.com/hacs/integration"><img alt="HACS" src="https://img.shields.io/badge/HACS-Integration-orange.svg"></a>
   <a href="https://www.home-assistant.io/"><img alt="HA 2024.11+" src="https://img.shields.io/badge/Home_Assistant-2024.11+-blue.svg"></a>
+  <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/License-Apache_2.0-3b82f6.svg"></a>
 </p>
 
-This integration turns a running [LocalSky](https://github.com/silenthooligan/localsky) instance into a first-class Home Assistant device. Full setup guide: [localsky.io/docs/hacs](https://localsky.io/docs/hacs). Every sensor that LocalSky's dashboard surfaces becomes a HA entity, and each zone exposes a switch you can drive from automations.
+[LocalSky](https://github.com/silenthooligan/localsky) is a local-first hyperlocal weather and irrigation engine that runs as one container on your LAN. This integration is the bridge: it finds your LocalSky, subscribes to its live streams, and turns everything it knows into Home Assistant entities you can automate against.
 
-LocalSky itself runs as a separate service (one Docker container on your LAN). This is just the thin Python client that exposes its REST API to HA.
+Full setup guide: **[localsky.io/docs/hacs](https://localsky.io/docs/hacs)**
+
+## Why you'll like it
+
+- **Instant.** State arrives over server-sent events, not polling. A zone starts watering and Home Assistant knows in under a second.
+- **Zero config.** LocalSky announces itself on the network; Home Assistant offers to add it. Pair, done.
+- **Grows with the server.** Entities are driven by LocalSky's own manifest. Add a zone or a sensor in LocalSky and it appears in Home Assistant, no integration update, no restart.
+- **Complete control.** Open and close zone valves, suspend irrigation, tune skip thresholds, and call `run_zone` / `stop_zone` / `stop_all` services from automations.
+- **Secure by default.** Instances with authentication enabled pair with an API token, and a guided reauth flow handles rotation.
+- **Multi-instance.** Test bed and production, or one per property. Each instance is its own device.
 
 ## What you get
 
-Per LocalSky instance, the integration creates one device with:
-
-| Kind | Entities |
+| Surface | Entities |
 |---|---|
-| Weather (`sensor`) | air temp, feels like, humidity, dew point, wind speed, wind gust, pressure, rain today, solar irradiance, UV index |
-| Verdict (`sensor`) | today's run / skip verdict from the engine |
-| Per zone (`sensor`) | soil bucket (mm), planned-run seconds, minutes run today |
-| Per zone (`binary_sensor`) | running on/off |
-| Any zone (`binary_sensor`) | true when any zone is running |
-| Per zone (`switch`) | turn on = run for 10 min; turn off = stop |
+| Weather | A full weather entity (conditions + daily forecast) backed by your own station |
+| Station | Temperature, feels like, humidity, dew point, wind speed/gust/direction, pressure, rain today, rain intensity, solar, UV, lightning, station battery |
+| Engine | Today's run/skip verdict and reason, days since rain, ET0, water level, heat multiplier, rain probability |
+| Per zone | Soil moisture, soil temperature, EC, probe battery, soil bucket, planned run, minutes run today, running state, and a valve |
+| Controls | Irrigation suspend switch, rain/wind/freeze threshold numbers |
+| Services | `localsky.run_zone`, `localsky.stop_zone`, `localsky.stop_all` |
 
-All values come from LocalSky's `/api/v1/snapshot`, `/api/v1/irrigation/snapshot`, and `/api/v1/forecast/snapshot` endpoints, polled every 30 seconds.
+## Install
 
-## Install via HACS (custom repository)
+**HACS** (custom repository, pending inclusion in the default catalog):
 
-1. In Home Assistant, open **HACS** -> **Integrations**.
-2. Open the three-dot menu (top right) -> **Custom repositories**.
-3. Add `https://github.com/silenthooligan/localsky-hacs` with category **Integration**.
-4. Search for **LocalSky** in HACS and install.
-5. Restart Home Assistant.
-6. Go to **Settings -> Devices & Services -> Add Integration** and search for **LocalSky**.
-7. Enter the LocalSky host (e.g. `192.168.1.100`) and port (default `8090`).
+1. HACS, three-dot menu, **Custom repositories**.
+2. Add `https://github.com/silenthooligan/localsky-hacs` as category **Integration**.
+3. Install **LocalSky**, restart Home Assistant.
 
-## Install manually
-
-```bash
-# from your HA config dir
-git clone https://github.com/silenthooligan/localsky-hacs.git
-cp -r localsky-hacs/custom_components/localsky custom_components/
-# restart HA, then add the integration from the UI
-```
-
-## Multi-instance
-
-You can pair a single HA install against multiple LocalSky instances (test-bed + production, or one per house). Each `host:port` becomes its own config entry and device. Entity names include the LocalSky's device label so they don't collide.
+**Pair**: if LocalSky is already running on your LAN, Home Assistant will discover it and prompt you. Otherwise add it under **Settings, Devices & Services, Add Integration**, search for LocalSky, and enter the host and port (default `8090`). Instances with auth enabled will ask for an API token, created in LocalSky under Settings, Account.
 
 ## Requirements
 
-- Home Assistant **2024.4.0** or newer.
-- A reachable LocalSky service running **0.2.0** or newer (the integration probes `/api/v1/info` and refuses to set up against older instances).
-
-## Status
-
-Tier-1 custom HACS repository. Submission to the HACS default catalog is gated on:
-
-- 90 days of low-issue-volume soak via the custom-repo install path.
-- LocalSky's REST API confirmed stable at `/api/v1/*`.
-- Unit tests against `pytest-homeassistant-custom-component`.
-
-See the [LocalSky HACS roadmap](https://github.com/silenthooligan/localsky/blob/main/docs/hacs.md) on the main repo for the gating criteria.
+- Home Assistant **2024.11** or newer
+- A reachable [LocalSky](https://github.com/silenthooligan/localsky) **0.2.0** or newer
 
 ## Contributing
 
-Bug reports and PRs welcome. For LocalSky-side issues (engine logic, source adapters, controller HAL), file against the main [silenthooligan/localsky](https://github.com/silenthooligan/localsky) repo. For HA-integration issues (config flow, entity shape, polling), file here.
+Bug reports and PRs welcome. Engine, weather source, or controller issues belong on the main [LocalSky repo](https://github.com/silenthooligan/localsky/issues); config flow, entity, or pairing issues belong [here](https://github.com/silenthooligan/localsky-hacs/issues).
 
 ## License
 

@@ -12,7 +12,7 @@ jobs:
     name: Pack and attach to release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Adjust version in manifest.json
         run: |
           version="${GITHUB_REF#refs/tags/v}"
