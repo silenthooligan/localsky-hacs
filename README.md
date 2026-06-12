@@ -64,6 +64,19 @@ Enter the host and port (default `8090`). Instances with auth enabled will ask f
 - Home Assistant **2024.11** or newer
 - A reachable [LocalSky](https://github.com/silenthooligan/localsky) **0.2.0** or newer
 
+## No LocalSky yet?
+
+- **Home Assistant OS / Supervised**: install the server as a
+  [Home Assistant app](https://github.com/silenthooligan/localsky-apps),
+  one click and it runs right next to HA (this integration then discovers
+  it automatically):
+
+  [![Add the LocalSky app repository to my Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fsilenthooligan%2Flocalsky-apps)
+
+- **Anywhere else Docker runs**: follow the
+  [quick start](https://localsky.io/docs/getting-started), it is one
+  container.
+
 ## Contributing
 
 Bug reports and PRs welcome. Engine, weather source, or controller issues belong on the main [LocalSky repo](https://github.com/silenthooligan/localsky/issues); config flow, entity, or pairing issues belong [here](https://github.com/silenthooligan/localsky-hacs/issues).
